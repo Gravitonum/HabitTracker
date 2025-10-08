@@ -31,7 +31,7 @@ class ScheduleType(Base):
     Справочник типов расписания для привычек.
     """
 
-    __tablename__ = "schedule_type"
+    __tablename__ = "ScheduleType"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -49,7 +49,7 @@ class RewardType(Base):
     Справочник типов наград.
     """
 
-    __tablename__ = "reward_type"
+    __tablename__ = "RewardType"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -68,7 +68,7 @@ class FriendStatus(Base):
     Справочник статусов дружбы.
     """
 
-    __tablename__ = "friend_status"
+    __tablename__ = "FriendStatus"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -89,7 +89,7 @@ class User(Base):
     Модель пользователя.
     """
 
-    __tablename__ = "user"
+    __tablename__ = "User"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -121,24 +121,28 @@ class Habit(Base):
     Модель привычки.
     """
 
-    __tablename__ = "habit"
+    __tablename__ = "Habit"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("User.id"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500))
     schedule_type_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("schedule_type.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("ScheduleType.id"), nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     color: Mapped[str | None] = mapped_column(String(7))  # HEX цвет, например #FF5733
     emoji: Mapped[str | None] = mapped_column(String(10))
     base_points: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
     created_at: Mapped[DateTime | None] = mapped_column(DateTime)
+    # Поля для custom расписания
+    custom_schedule_days: Mapped[str | None] = mapped_column(String(50))  # JSON строка с днями недели
+    custom_schedule_time: Mapped[str | None] = mapped_column(String(10))  # Время в формате HH:MM
+    custom_schedule_frequency: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # Частота (каждый N день)
 
     # Связи
     # user = relationship("User", back_populates="habits")
@@ -152,16 +156,16 @@ class HabitCompletion(Base):
     Модель отметки выполнения привычки.
     """
 
-    __tablename__ = "habit_completion"
+    __tablename__ = "HabitCompletion"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     habit_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("habit.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("Habit.id"), nullable=False
     )
     user_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("User.id"), nullable=False
     )
     completion_date: Mapped[date] = mapped_column(
         Date, nullable=False
@@ -181,16 +185,16 @@ class Reward(Base):
     Модель награды, полученной пользователем.
     """
 
-    __tablename__ = "reward"
+    __tablename__ = "Reward"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("User.id"), nullable=False
     )
     reward_type_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("reward_type.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("RewardType.id"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500))
@@ -206,19 +210,19 @@ class Friend(Base):
     Модель дружбы/запроса в друзья.
     """
 
-    __tablename__ = "friend"
+    __tablename__ = "Friend"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("User.id"), nullable=False
     )  # Кто отправил запрос
     friend_id: Mapped[UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id")
+        UUID(as_uuid=True), ForeignKey("User.id")
     )  # Кого добавили (NULL, если запрос не принят)
     friend_status_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("friend_status.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("FriendStatus.id"), nullable=False
     )
     created_at: Mapped[DateTime | None] = mapped_column(DateTime)
 
@@ -233,7 +237,7 @@ class Challenge(Base):
     Модель челленджа.
     """
 
-    __tablename__ = "challenge"
+    __tablename__ = "Challenge"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -258,16 +262,16 @@ class ChallengeParticipant(Base):
     Модель участника челленджа.
     """
 
-    __tablename__ = "challenge_participant"
+    __tablename__ = "ChallengeParticipant"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     challenge_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("challenge.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("Challenge.id"), nullable=False
     )
     user_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("User.id"), nullable=False
     )
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -282,19 +286,19 @@ class Notification(Base):
     Модель уведомления.
     """
 
-    __tablename__ = "notification"
+    __tablename__ = "Notification"
 
     id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("user.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("User.id"), nullable=False
     )
     habit_id: Mapped[UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("habit.id")
+        UUID(as_uuid=True), ForeignKey("Habit.id")
     )  # Может быть NULL
     challenge_id: Mapped[UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("challenge.id")
+        UUID(as_uuid=True), ForeignKey("Challenge.id")
     )  # Может быть NULL
     notification_time: Mapped[DateTime | None] = mapped_column(DateTime)
     is_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

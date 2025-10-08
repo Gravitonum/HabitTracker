@@ -113,6 +113,10 @@ class HabitBase(BaseSchema):
     )  # HEX цвет
     emoji: Optional[str] = Field(None, max_length=10)
     base_points: int = Field(10, ge=0, description="Базовые очки за выполнение")
+    # Поля для custom расписания
+    custom_schedule_days: Optional[str] = Field(None, max_length=50, description="Дни недели для custom расписания (JSON)")
+    custom_schedule_time: Optional[str] = Field(None, max_length=10, description="Время напоминания (HH:MM)")
+    custom_schedule_frequency: int = Field(1, ge=1, description="Частота выполнения (каждый N день)")
 
 
 class HabitCreate(HabitBase):

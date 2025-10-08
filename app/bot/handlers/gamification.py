@@ -6,6 +6,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from app.bot.services.reward_service import get_user_rewards, get_user_level_info
 from app.bot.services.habit_service import get_user_statistics
+from app.bot.services.user_service import get_or_create_user
+from app.core.database import get_db_session
 import logging
 
 logger = logging.getLogger(__name__)
@@ -50,21 +52,36 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     telegram_id = user.id
 
-    # Пример получения данных (требует интеграции с базой данных)
-    # stats = await get_user_statistics(db_session, telegram_id)
-    # rewards = await get_user_rewards(db_session, telegram_id)
-    # level_info = await get_user_level_info(db_session, telegram_id)
+    try:
+        async for db in get_db_session():
+            # Убеждаемся, что пользователь зарегистрирован
+            db_user = await get_or_create_user(
+                db=db,
+                telegram_id=telegram_id,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name,
+            )
+            
+            # Получаем статистику пользователя
+            stats = await get_user_statistics(db, telegram_id)
+            
+            message = f"Профиль пользователя: {user.first_name or user.username or 'пользователь'}\n"
+            message += f"Telegram ID: {telegram_id}\n"
+            message += f"Уровень: {db_user.level}\n"
+            message += f"Очки: {db_user.points}\n"
+            message += f"Текущая серия: {db_user.current_streak} дней\n"
+            message += f"Самая длинная серия: {db_user.longest_streak} дней\n"
+            message += f"Дата регистрации: {db_user.created_at.strftime('%d.%m.%Y') if db_user.created_at else 'Неизвестно'}\n"
+            message += "Награды: пока нет\n"
+            message += "Чтобы посмотреть статистику привычек, используйте /stats"
 
-    # Пока временный ответ
-    message = f"Профиль пользователя: {user.full_name}\n"
-    message += f"Telegram ID: {telegram_id}\n"
-    message += (
-        "Уровень: 1\nОчки: 0\nТекущая серия: 0 дней\nСамая длинная серия: 0 дней\n"
-    )
-    message += "Награды: пока нет\n"
-    message += "Чтобы посмотреть статистику привычек, используйте /stats"
-
-    await update.message.reply_text(message)
+            await update.message.reply_text(message)
+            break
+            
+    except Exception as e:
+        logger.error(f"Ошибка при получении профиля пользователя {telegram_id}: {e}")
+        await update.message.reply_text("Произошла ошибка при получении профиля.")
 
 
 async def show_rewards(update: Update, context: ContextTypes.DEFAULT_TYPE):

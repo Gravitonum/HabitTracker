@@ -59,16 +59,56 @@ class HabitReminderScheduler:
         Асинхронная задача для отправки ежедневных напоминаний пользователям.
         """
         logger.info("Запуск задачи отправки ежедневных напоминаний.")
-        # Логика получения пользователей с незавершенными привычками за сегодня
-        # и отправки им напоминаний через telegram_app
-        # Пример:
-        # users_to_notify = await get_users_with_uncompleted_habits_today()
-        # for user_data in users_to_notify:
-        #     await self.telegram_app.bot.send_message(
-        #         chat_id=user_data['chat_id'],
-        #         text="Не забудьте выполнить свои привычки сегодня!"
-        #     )
-        #     await asyncio.sleep(0.05)  # Небольшая задержка между сообщениями
+        
+        try:
+            from app.core.database import get_db_session
+            from app.bot.services.habit_service import get_users_with_uncompleted_daily_habits
+            from datetime import date
+            
+            # Получаем пользователей с незавершенными ежедневными привычками
+            async for db in get_db_session():
+                users_to_notify = await get_users_with_uncompleted_daily_habits(db)
+                
+                if not users_to_notify:
+                    logger.info("Нет пользователей для отправки напоминаний.")
+                    break
+                
+                logger.info(f"Отправка напоминаний {len(users_to_notify)} пользователям.")
+                
+                for user_data in users_to_notify:
+                    user = user_data['user']
+                    uncompleted_habits = user_data['uncompleted_habits']
+                    
+                    if not uncompleted_habits:
+                        continue
+                    
+                    # Формируем сообщение с незавершенными привычками
+                    habit_names = [habit.name for habit in uncompleted_habits]
+                    message = (
+                        f"🔔 **Напоминание о привычках**\n\n"
+                        f"Привет, {user.first_name or user.username or 'пользователь'}!\n"
+                        f"Не забудьте выполнить свои ежедневные привычки:\n\n"
+                    )
+                    
+                    for i, habit_name in enumerate(habit_names, 1):
+                        message += f"{i}. {habit_name}\n"
+                    
+                    message += f"\nИспользуйте /complete <номер> для отметки выполнения."
+                    
+                    try:
+                        await self.telegram_app.bot.send_message(
+                            chat_id=user.telegram_id,
+                            text=message
+                        )
+                        logger.info(f"Напоминание отправлено пользователю {user.telegram_id}")
+                        await asyncio.sleep(0.1)  # Небольшая задержка между сообщениями
+                    except Exception as e:
+                        logger.error(f"Ошибка при отправке напоминания пользователю {user.telegram_id}: {e}")
+                
+                break
+                
+        except Exception as e:
+            logger.error(f"Ошибка в задаче отправки напоминаний: {e}")
 
     async def check_weekly_challenges(self):
         """
