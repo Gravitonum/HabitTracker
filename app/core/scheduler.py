@@ -31,11 +31,11 @@ class HabitReminderScheduler:
             self.is_running = True
             logger.info("Планировщик задач запущен.")
 
-            # Пример: Ежедневное напоминание в 18:00
+            # Проверка напоминаний каждую минуту для более точного контроля
             self.scheduler.add_job(
                 self.send_daily_reminders,
-                CronTrigger(hour=18, minute=0),  # Напоминание каждый день в 18:00
-                id="daily_habit_reminder",
+                CronTrigger(minute="*"),  # Каждую минуту
+                id="habit_reminder_check",
             )
 
             # Пример: Еженедельная проверка челленджей в понедельник в 9:00
@@ -57,15 +57,17 @@ class HabitReminderScheduler:
     async def send_daily_reminders(self):
         """
         Асинхронная задача для отправки ежедневных напоминаний пользователям.
+        Учитывает индивидуальные настройки частоты напоминаний.
         """
         logger.info("Запуск задачи отправки ежедневных напоминаний.")
         
         try:
             from app.core.database import get_db_session
             from app.bot.services.habit_service import get_users_with_uncompleted_daily_habits
-            from datetime import date
+            from datetime import date, datetime
+            from app.utils.timezone_utils import is_habit_time_now, get_user_timezone
             
-            # Получаем пользователей с незавершенными ежедневными привычками
+            # Получаем пользователей с незавершенными привычками
             async for db in get_db_session():
                 users_to_notify = await get_users_with_uncompleted_daily_habits(db)
                 
@@ -73,7 +75,7 @@ class HabitReminderScheduler:
                     logger.info("Нет пользователей для отправки напоминаний.")
                     break
                 
-                logger.info(f"Отправка напоминаний {len(users_to_notify)} пользователям.")
+                logger.info(f"Найдено {len(users_to_notify)} пользователей с незавершенными привычками.")
                 
                 for user_data in users_to_notify:
                     user = user_data['user']
@@ -82,12 +84,30 @@ class HabitReminderScheduler:
                     if not uncompleted_habits:
                         continue
                     
+                    # Проверяем, нужно ли отправлять напоминание этому пользователю
+                    if not self._should_send_reminder(user):
+                        continue
+                    
+                    # Фильтруем привычки по времени напоминания
+                    habits_to_remind = []
+                    for habit in uncompleted_habits:
+                        if habit.custom_schedule_time:
+                            # Проверяем, наступило ли время для напоминания
+                            if is_habit_time_now(habit.custom_schedule_time, habit.timezone):
+                                habits_to_remind.append(habit)
+                        else:
+                            # Для привычек без времени добавляем в список
+                            habits_to_remind.append(habit)
+                    
+                    if not habits_to_remind:
+                        continue
+                    
                     # Формируем сообщение с незавершенными привычками
-                    habit_names = [habit.name for habit in uncompleted_habits]
+                    habit_names = [habit.name for habit in habits_to_remind]
                     message = (
-                        f"🔔 **Напоминание о привычках**\n\n"
+                        f"🔔 Напоминание о привычках\n\n"
                         f"Привет, {user.first_name or user.username or 'пользователь'}!\n"
-                        f"Не забудьте выполнить свои ежедневные привычки:\n\n"
+                        f"Не забудьте выполнить свои привычки:\n\n"
                     )
                     
                     for i, habit_name in enumerate(habit_names, 1):
@@ -109,6 +129,39 @@ class HabitReminderScheduler:
                 
         except Exception as e:
             logger.error(f"Ошибка в задаче отправки напоминаний: {e}")
+
+    def _should_send_reminder(self, user):
+        """
+        Проверяет, нужно ли отправлять напоминание пользователю в данный момент.
+        Учитывает индивидуальные настройки частоты напоминаний.
+        """
+        from datetime import datetime
+        
+        frequency = user.reminder_frequency or "0"
+        now = datetime.now()
+        
+        # Если частота не задана или "0" - каждый час в начале часа
+        if frequency == "0":
+            return now.minute == 0
+        
+        # Если частота задана как cron-выражение (например, "*/10", "*/15", "*/30", "*/45")
+        if frequency.startswith("*/"):
+            try:
+                interval = int(frequency[2:])  # Извлекаем число после "*/"
+                return now.minute % interval == 0
+            except ValueError:
+                return False
+        
+        # Если частота "daily_start" - каждый день в начале дня (00:00)
+        if frequency == "daily_start":
+            return now.hour == 0 and now.minute == 0
+        
+        # Если частота "daily_end" - каждый день в конце дня (18:00)
+        if frequency == "daily_end":
+            return now.hour == 18 and now.minute == 0
+        
+        # По умолчанию - каждый час
+        return now.minute == 0
 
     async def check_weekly_challenges(self):
         """

@@ -105,6 +105,8 @@ class User(Base):
     points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    timezone: Mapped[str | None] = mapped_column(String(50), default="Europe/Moscow")  # Часовой пояс пользователя
+    reminder_frequency: Mapped[str | None] = mapped_column(String(20), default="0")  # Частота напоминаний
 
     # Связи
     # habits = relationship("Habit", back_populates="user", cascade="all, delete-orphan")
@@ -143,6 +145,7 @@ class Habit(Base):
     custom_schedule_days: Mapped[str | None] = mapped_column(String(50))  # JSON строка с днями недели
     custom_schedule_time: Mapped[str | None] = mapped_column(String(10))  # Время в формате HH:MM
     custom_schedule_frequency: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # Частота (каждый N день)
+    timezone: Mapped[str | None] = mapped_column(String(50), default="Europe/Moscow")  # Часовой пояс пользователя
 
     # Связи
     # user = relationship("User", back_populates="habits")
@@ -308,3 +311,28 @@ class Notification(Base):
     # user = relationship("User", back_populates="notifications")
     # habit = relationship("Habit", back_populates="notifications")
     # challenge = relationship("Challenge", back_populates="participants") # Связь с Challenge, а не с ChallengeParticipant
+
+
+class BugReport(Base):
+    """
+    Модель отчета об ошибке.
+    """
+
+    __tablename__ = "BugReport"
+
+    id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("User.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(String(2000), nullable=False)
+    incident_type: Mapped[str] = mapped_column(String(20), nullable=False)  # Critical, High, Low, Feature
+    status: Mapped[str] = mapped_column(String(20), default="New", nullable=False)  # New, InProgress, Solved, Rejected
+    admin_comment: Mapped[str | None] = mapped_column(String(1000))  # Комментарий администратора
+    created_at: Mapped[DateTime | None] = mapped_column(DateTime)
+    updated_at: Mapped[DateTime | None] = mapped_column(DateTime)
+
+    # Связи
+    # user = relationship("User", back_populates="bug_reports")

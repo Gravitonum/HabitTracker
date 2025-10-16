@@ -31,7 +31,18 @@ from app.bot.handlers.conversation import (
     HABIT_DESCRIPTION,
     CUSTOM_SETTINGS,
 )
-from app.bot.handlers.gamification import show_profile, show_rewards, show_leaderboard
+from app.bot.handlers.gamification import show_profile, show_rewards, show_leaderboard, show_reminder_settings, handle_reminder_frequency_callback
+from app.bot.handlers.bugreport import (
+    start_bug_report, handle_title, handle_description, handle_incident_type,
+    cancel_bug_report, show_bug_report_help,
+    WAITING_FOR_TITLE, WAITING_FOR_DESCRIPTION, WAITING_FOR_INCIDENT_TYPE
+)
+from app.bot.handlers.admin_bugreport import (
+    admin_bug_reports_menu, handle_admin_callback, start_add_comment,
+    handle_comment, cancel_admin_action, start_status_change, handle_status_change,
+    delete_report, confirm_delete_report, show_reports_statistics,
+    start_search_reports, handle_search, WAITING_FOR_COMMENT
+)
 from app.bot.services.user_service import get_or_create_user
 from app.core.database import get_db_session
 
@@ -55,6 +66,10 @@ async def setup_bot_commands(application: Application):
         BotCommand("stats", "Посмотреть подробную статистику по привычкам"),
         BotCommand("rewards", "Увидеть список ваших наград (бейджей)"),
         BotCommand("leaderboard", "Посмотреть таблицу лидеров по очкам"),
+        BotCommand("reminder_settings", "Настроить частоту напоминаний"),
+        BotCommand("send_bugreport", "Отправить сообщение об ошибке"),
+        BotCommand("bugreport_help", "Справка по отправке отчетов об ошибках"),
+        BotCommand("admin_bugreports", "Административная панель отчетов (только для админов)"),
         BotCommand("cancel", "Отменить текущее действие"),
         BotCommand("help", "Показать это сообщение"),
     ]
@@ -111,7 +126,7 @@ async def update_commands(update, context) -> None:
 async def help_command(update, context) -> None:
     """Обработчик команды /help."""
     help_text = (
-        "📋 **Доступные команды:**\n\n"
+        "📋 Доступные команды:\n\n"
         "1. /start - Начать работу с ботом\n"
         "2. /profile - Посмотреть уровень, очки, серию\n"
         "3. /habits - Увидеть список ваших привычек\n"
@@ -121,31 +136,34 @@ async def help_command(update, context) -> None:
         "7. /stats - Посмотреть подробную статистику по привычкам\n"
         "8. /rewards - Увидеть список ваших наград (бейджей)\n"
         "9. /leaderboard - Посмотреть таблицу лидеров по очкам\n"
-        "10. /help - Показать это сообщение\n\n"
-        "📅 **Создание привычек:**\n"
+        "10. /reminder_settings - Настроить частоту напоминаний\n"
+        "11. /send_bugreport - Отправить сообщение об ошибке\n"
+        "12. /bugreport_help - Справка по отправке отчетов об ошибках\n"
+        "13. /help - Показать это сообщение\n\n"
+        "📅 Создание привычек:\n"
         "Используйте команду /create_habit для интерактивного создания привычки.\n\n"
-        "**Процесс создания:**\n"
+        "Процесс создания:\n"
         "1️⃣ Выберите тип расписания (Ежедневно/Еженедельно/Свой график)\n"
         "2️⃣ Введите название привычки\n"
         "3️⃣ Введите описание (необязательно, можно пропустить)\n"
         "4️⃣ Готово! Привычка создана\n\n"
-        "**Доступные типы расписания:**\n"
-        "• **Ежедневно** - напоминания каждый день в 18:00\n"
-        "• **Еженедельно** - напоминания раз в неделю\n"
-        "• **Свой график (custom)** - настраиваемое расписание\n\n"
-        "**Custom расписание:**\n"
+        "Доступные типы расписания:\n"
+        "• Ежедневно - напоминания каждый день в 18:00\n"
+        "• Еженедельно - напоминания раз в неделю\n"
+        "• Свой график (custom) - настраиваемое расписание\n\n"
+        "Custom расписание:\n"
         "Формат: `дни_недели,время,частота`\n"
         "• Дни: пн,вт,ср,чт,пт,сб,вс\n"
         "• Время: HH:MM (например, 18:00)\n"
         "• Частота: каждые N дней (по умолчанию 1)\n\n"
-        "**Пример custom:** `пн,ср,пт, 18:00, 1`\n\n"
-        "🗑️ **Удаление привычек:**\n"
+        "Пример custom: `пн,ср,пт, 18:00, 1`\n\n"
+        "🗑️ Удаление привычек:\n"
         "Используйте команду /delete_habit для удаления привычки.\n\n"
-        "**Процесс удаления:**\n"
+        "Процесс удаления:\n"
         "1️⃣ Выберите привычку из списка\n"
         "2️⃣ Подтвердите удаление\n"
         "3️⃣ Привычка будет удалена навсегда\n\n"
-        "⚠️ **Внимание:** Удаление привычки нельзя отменить!"
+        "⚠️ Внимание: Удаление привычки нельзя отменить!"
     )
     await update.message.reply_text(help_text)
 
@@ -195,6 +213,36 @@ def main() -> None:
         per_message=False,
     )
 
+    # Создаем ConversationHandler для отправки отчетов об ошибках
+    bug_report_conversation = ConversationHandler(
+        entry_points=[CommandHandler("send_bugreport", start_bug_report)],
+        states={
+            WAITING_FOR_TITLE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_title)
+            ],
+            WAITING_FOR_DESCRIPTION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_description)
+            ],
+            WAITING_FOR_INCIDENT_TYPE: [
+                CallbackQueryHandler(handle_incident_type, pattern="^(incident_type_|cancel_bug_report)")
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_bug_report)],
+        per_message=False,
+    )
+
+    # Создаем ConversationHandler для административных действий
+    admin_bug_report_conversation = ConversationHandler(
+        entry_points=[CommandHandler("admin_bugreports", admin_bug_reports_menu)],
+        states={
+            WAITING_FOR_COMMENT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_comment)
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_admin_action)],
+        per_message=False,
+    )
+
     # Регистрация обработчиков команд
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
@@ -207,12 +255,31 @@ def main() -> None:
     application.add_handler(CommandHandler("stats", show_stats))
     application.add_handler(CommandHandler("rewards", show_rewards))
     application.add_handler(CommandHandler("leaderboard", show_leaderboard))
+    application.add_handler(CommandHandler("reminder_settings", show_reminder_settings))
     application.add_handler(CommandHandler("test_notifications", test_notifications))
+    
+    # Обработчики для отчетов об ошибках
+    application.add_handler(bug_report_conversation)
+    application.add_handler(CommandHandler("bugreport_help", show_bug_report_help))
+    application.add_handler(admin_bug_report_conversation)
     
     # Добавляем обработчики callback'ов
     application.add_handler(CallbackQueryHandler(handle_complete_callback, pattern="^complete_"))
-    application.add_handler(CallbackQueryHandler(handle_delete_callback, pattern="^delete_"))
-    application.add_handler(CallbackQueryHandler(handle_delete_confirm_callback, pattern="^(confirm_delete_|cancel_delete)"))
+    application.add_handler(CallbackQueryHandler(handle_delete_callback, pattern="^delete_[0-9a-f-]{36}$"))
+    application.add_handler(CallbackQueryHandler(handle_delete_confirm_callback, pattern="^(confirm_delete_[0-9a-f-]{36}|cancel_delete)$"))
+    application.add_handler(CallbackQueryHandler(handle_reminder_frequency_callback, pattern="^reminder_freq_"))
+    
+    # Обработчики callback'ов для административной панели отчетов об ошибках
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^admin_"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^view_report_"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^change_status_"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^add_comment_"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^delete_report_"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^confirm_delete_report_"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^set_status_"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^back_to_admin_menu"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^admin_all_reports"))
+    application.add_handler(CallbackQueryHandler(handle_admin_callback, pattern="^admin_all_reports_page_"))
 
     # Добавление обработчика ошибок
     async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:

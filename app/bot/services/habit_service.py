@@ -18,6 +18,7 @@ async def create_habit(
     custom_schedule_days: str = None,
     custom_schedule_time: str = None,
     custom_schedule_frequency: int = 1,
+    timezone: str = "Europe/Moscow",
 ) -> Habit:
     """
     Создаёт новую привычку для пользователя.
@@ -42,6 +43,7 @@ async def create_habit(
         custom_schedule_days=custom_schedule_days,
         custom_schedule_time=custom_schedule_time,
         custom_schedule_frequency=custom_schedule_frequency,
+        timezone=timezone,
     )
     db.add(habit)
     await db.commit()
@@ -260,17 +262,20 @@ async def calculate_current_streak(db: AsyncSession, habit_id) -> int:
 
 async def get_users_with_uncompleted_daily_habits(db: AsyncSession, target_date: date = None):
     """
-    Возвращает пользователей с незавершенными ежедневными привычками на указанную дату.
+    Возвращает пользователей с незавершенными привычками на указанную дату.
+    Учитывает все типы привычек: daily, weekly, custom.
     """
+    from app.utils.timezone_utils import is_habit_day_today, get_user_timezone
+    from datetime import datetime
+    
     if target_date is None:
         target_date = date.today()
     
-    # Получаем всех пользователей с активными ежедневными привычками
+    # Получаем всех пользователей с активными привычками
     result = await db.execute(
-        select(User, Habit)
+        select(User, Habit, ScheduleType)
         .join(Habit, User.id == Habit.user_id)
         .join(ScheduleType, Habit.schedule_type_id == ScheduleType.id)
-        .where(ScheduleType.name == "daily")
         .where(Habit.is_active == True)
     )
     
@@ -278,28 +283,47 @@ async def get_users_with_uncompleted_daily_habits(db: AsyncSession, target_date:
     
     # Группируем по пользователям
     users_with_habits = {}
-    for user, habit in user_habits:
+    for user, habit, schedule_type in user_habits:
         if user.id not in users_with_habits:
             users_with_habits[user.id] = {
                 'user': user,
                 'habits': [],
                 'uncompleted_habits': []
             }
-        users_with_habits[user.id]['habits'].append(habit)
+        users_with_habits[user.id]['habits'].append((habit, schedule_type))
     
     # Проверяем, какие привычки не выполнены
     for user_id, data in users_with_habits.items():
-        for habit in data['habits']:
-            # Проверяем, была ли привычка выполнена в этот день
-            completion_result = await db.execute(
-                select(HabitCompletion)
-                .where(HabitCompletion.habit_id == habit.id)
-                .where(HabitCompletion.completion_date == target_date)
-                .where(HabitCompletion.is_completed == True)
-            )
+        for habit, schedule_type in data['habits']:
+            # Проверяем, должна ли выполняться привычка сегодня
+            should_execute_today = False
             
-            if not completion_result.scalar_one_or_none():
-                data['uncompleted_habits'].append(habit)
+            if schedule_type.name == "daily":
+                # Ежедневные привычки выполняются каждый день
+                should_execute_today = True
+            elif schedule_type.name == "weekly":
+                # Еженедельные привычки выполняются раз в неделю
+                # Для простоты считаем, что они должны выполняться в понедельник
+                should_execute_today = datetime.now(get_user_timezone(habit.timezone)).weekday() == 0
+            elif schedule_type.name == "custom":
+                # Custom привычки выполняются по расписанию
+                if habit.custom_schedule_days:
+                    should_execute_today = is_habit_day_today(habit.custom_schedule_days, habit.timezone)
+                else:
+                    # Если дни не указаны, считаем ежедневной
+                    should_execute_today = True
+            
+            if should_execute_today:
+                # Проверяем, была ли привычка выполнена в этот день
+                completion_result = await db.execute(
+                    select(HabitCompletion)
+                    .where(HabitCompletion.habit_id == habit.id)
+                    .where(HabitCompletion.completion_date == target_date)
+                    .where(HabitCompletion.is_completed == True)
+                )
+                
+                if not completion_result.scalar_one_or_none():
+                    data['uncompleted_habits'].append(habit)
     
     # Возвращаем только пользователей с незавершенными привычками
     return [data for data in users_with_habits.values() if data['uncompleted_habits']]
