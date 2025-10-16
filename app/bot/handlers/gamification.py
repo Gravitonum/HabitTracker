@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from app.bot.services.reward_service import get_user_rewards, get_user_level_info
 from app.bot.services.habit_service import get_user_statistics
-from app.bot.services.user_service import get_or_create_user
+from app.bot.services.user_service import get_or_create_user, get_top_users_by_points, get_user_position_by_points
 from app.core.database import get_db_session
 import logging
 
@@ -127,6 +127,15 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Показывает таблицу лидеров (по умолчанию по очкам).
     """
+    user = update.effective_user
+    if not user:
+        if update.effective_chat:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Не удалось получить информацию о пользователе.",
+            )
+        return
+
     # Проверяем, что message существует
     if update.message is None:
         logger.warning(
@@ -140,15 +149,54 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
 
-    # Пример получения данных (требует интеграции с базой данных)
-    # leaderboard = await get_top_users_by_points(db_session)
+    telegram_id = user.id
 
-    # Пока временный ответ
-    message = "Таблица лидеров (по очкам):\n"
-    message += "1. [USER1] - 150 очков\n"
-    message += "2. [USER2] - 120 очков\n"
-    message += "3. [USER3] - 90 очков\n"
-    message += "...\n"
-    message += "Ваше место: не найдено (наберите очки!)"
+    try:
+        async for db in get_db_session():
+            # Получаем топ пользователей по очкам
+            leaderboard = await get_top_users_by_points(db, limit=10)
+            
+            # Получаем позицию текущего пользователя
+            user_position = await get_user_position_by_points(db, telegram_id)
+            
+            if not leaderboard:
+                message = "🏆 Таблица лидеров (по очкам):\n\n"
+                message += "Пока никто не набрал очков. Станьте первым!\n"
+                message += "Выполняйте привычки, чтобы заработать очки и попасть в таблицу лидеров."
+            else:
+                message = "🏆 Таблица лидеров (по очкам):\n\n"
+                
+                for user_data, position in leaderboard:
+                    # Формируем имя пользователя
+                    display_name = user_data.first_name or user_data.username or f"Пользователь {user_data.telegram_id}"
+                    if user_data.last_name:
+                        display_name += f" {user_data.last_name}"
+                    
+                    # Добавляем эмодзи для топ-3
+                    if position == 1:
+                        medal = "🥇"
+                    elif position == 2:
+                        medal = "🥈"
+                    elif position == 3:
+                        medal = "🥉"
+                    else:
+                        medal = f"{position}."
+                    
+                    message += f"{medal} {display_name} - {user_data.points} очков\n"
+                
+                # Добавляем информацию о позиции текущего пользователя
+                message += "\n"
+                if user_position:
+                    if user_position <= 10:
+                        message += f"🎯 Ваше место: {user_position} (уже в топе!)"
+                    else:
+                        message += f"🎯 Ваше место: {user_position}"
+                else:
+                    message += "🎯 Ваше место: не найдено (наберите очки!)"
 
-    await update.message.reply_text(message)
+            await update.message.reply_text(message)
+            break
+            
+    except Exception as e:
+        logger.error(f"Ошибка при получении таблицы лидеров: {e}")
+        await update.message.reply_text("Произошла ошибка при получении таблицы лидеров.")
