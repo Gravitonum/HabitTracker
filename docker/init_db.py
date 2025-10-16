@@ -32,6 +32,28 @@ def init_database():
         print("База данных успешно создана!")
     else:
         print(f"База данных уже существует: {db_path}")
+        # Проверяем, есть ли в базе таблицы
+        try:
+            import sqlite3
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='User';")
+            if not cursor.fetchone():
+                print("База данных существует, но не содержит таблиц. Пересоздаем...")
+                conn.close()
+                os.remove(db_path)
+                create_database(db_path)
+                print("База данных пересоздана!")
+            else:
+                print("База данных содержит таблицы, используем существующую.")
+            conn.close()
+        except Exception as e:
+            print(f"Ошибка при проверке базы данных: {e}")
+            print("Пересоздаем базу данных...")
+            if Path(db_path).exists():
+                os.remove(db_path)
+            create_database(db_path)
+            print("База данных пересоздана!")
     
     # Проверяем структуру базы данных
     try:
