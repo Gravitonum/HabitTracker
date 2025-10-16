@@ -51,7 +51,8 @@ class Settings:
     MAX_STREAK_DAYS: int = int(
         os.getenv("MAX_STREAK_DAYS", "365")
     )  # Максимальная длина серии для бонуса
-
+    # ID администратора для получения уведомлений о ошибках
+    ADMIN_ID: int = int(os.getenv("ADMIN_TELEGRAM_ID", "1234567890"))
 
 # Экземпляр настроек для импорта
 settings = Settings()

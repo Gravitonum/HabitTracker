@@ -43,7 +43,7 @@ async def start_create_habit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        "🏗️ **Создание новой привычки**\n\n"
+        "🏗️ Создание новой привычки\n\n"
         "Выберите тип расписания:",
         reply_markup=reply_markup
     )
@@ -65,22 +65,22 @@ async def handle_schedule_type(update: Update, context: ContextTypes.DEFAULT_TYP
         # Если выбран custom, переходим к настройкам custom
         if schedule_type == "custom":
             await query.edit_message_text(
-                "📅 **Настройка custom расписания**\n\n"
+                "📅 Настройка custom расписания\n\n"
                 "Введите настройки в формате:\n"
                 "`дни_недели,время,частота`\n\n"
-                "**Примеры:**\n"
+                "Примеры:\n"
                 "• `пн,ср,пт, 18:00, 1` - понедельник, среда, пятница в 18:00\n"
                 "• `сб,вс, 10:00, 1` - выходные в 10:00\n"
                 "• `пн,вт,ср,чт,пт, 09:00, 1` - будни в 9:00\n\n"
-                "**Дни недели:** пн, вт, ср, чт, пт, сб, вс\n"
-                "**Время:** HH:MM (например, 18:00)\n"
-                "**Частота:** каждые N дней (по умолчанию 1)"
+                "Дни недели: пн, вт, ср, чт, пт, сб, вс\n"
+                "Время: HH:MM (например, 18:00)\n"
+                "Частота: каждые N дней (по умолчанию 1)"
             )
             return CUSTOM_SETTINGS
         else:
             # Для daily и weekly переходим к названию
             await query.edit_message_text(
-                f"✅ Выбран тип расписания: **{SCHEDULE_TYPES[schedule_type]}**\n\n"
+                f"✅ Выбран тип расписания: {SCHEDULE_TYPES[schedule_type]}\n\n"
                 "📝 Введите название привычки:"
             )
             return HABIT_NAME
@@ -99,7 +99,7 @@ async def handle_custom_settings(update: Update, context: ContextTypes.DEFAULT_T
     if len(parts) < 2:
         await update.message.reply_text(
             "❌ Неверный формат. Используйте: `дни_недели,время,частота`\n"
-            "**Пример:** `пн,ср,пт, 18:00, 1`"
+            "Пример: `пн,ср,пт, 18:00, 1`"
         )
         return CUSTOM_SETTINGS
     
@@ -132,7 +132,7 @@ async def handle_habit_name(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['habit_name'] = habit_name
     
     await update.message.reply_text(
-        f"✅ Название: **{habit_name}**\n\n"
+        f"✅ Название: {habit_name}\n\n"
         "📄 Введите описание привычки (или отправьте /skip для пропуска):"
     )
     

@@ -311,3 +311,28 @@ class Notification(Base):
     # user = relationship("User", back_populates="notifications")
     # habit = relationship("Habit", back_populates="notifications")
     # challenge = relationship("Challenge", back_populates="participants") # Связь с Challenge, а не с ChallengeParticipant
+
+
+class BugReport(Base):
+    """
+    Модель отчета об ошибке.
+    """
+
+    __tablename__ = "BugReport"
+
+    id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("User.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(String(2000), nullable=False)
+    incident_type: Mapped[str] = mapped_column(String(20), nullable=False)  # Critical, High, Low, Feature
+    status: Mapped[str] = mapped_column(String(20), default="New", nullable=False)  # New, InProgress, Solved, Rejected
+    admin_comment: Mapped[str | None] = mapped_column(String(1000))  # Комментарий администратора
+    created_at: Mapped[DateTime | None] = mapped_column(DateTime)
+    updated_at: Mapped[DateTime | None] = mapped_column(DateTime)
+
+    # Связи
+    # user = relationship("User", back_populates="bug_reports")

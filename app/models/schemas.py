@@ -290,3 +290,33 @@ class Notification(NotificationBase):
     user: Optional[User] = None  # Опционально
     habit: Optional[Habit] = None  # Опционально
     # challenge: Optional[Challenge] = None # Опционально
+
+
+# --- Схемы для отчетов об ошибках ---
+
+class BugReportBase(BaseSchema):
+    title: str = Field(..., max_length=200, description="Заголовок отчета об ошибке")
+    description: str = Field(..., max_length=2000, description="Описание ошибки")
+    incident_type: str = Field(..., max_length=20, description="Тип инцидента: Critical, High, Low, Feature")
+    status: str = Field("New", max_length=20, description="Статус: New, InProgress, Solved, Rejected")
+    admin_comment: Optional[str] = Field(None, max_length=1000, description="Комментарий администратора")
+
+
+class BugReportCreate(BugReportBase):
+    user_id: UUID
+
+
+class BugReportUpdate(BaseSchema):
+    title: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    incident_type: Optional[str] = Field(None, max_length=20)
+    status: Optional[str] = Field(None, max_length=20)
+    admin_comment: Optional[str] = Field(None, max_length=1000)
+
+
+class BugReport(BugReportBase):
+    id: UUID
+    user_id: UUID
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+    user: Optional[User] = None  # Опционально

@@ -288,8 +288,8 @@ async def show_reminder_settings(update: Update, context: ContextTypes.DEFAULT_T
             
             current_desc = frequency_descriptions.get(current_freq, "каждый час в начале часа")
             
-            message = f"🔔 **Настройка частоты напоминаний**\n\n"
-            message += f"Текущая частота: **{current_desc}**\n\n"
+            message = f"🔔 Настройка частоты напоминаний\n\n"
+            message += f"Текущая частота: {current_desc}\n\n"
             message += "Выберите желаемую частоту напоминаний:"
             
             await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
@@ -341,8 +341,8 @@ async def handle_reminder_frequency_callback(update: Update, context: ContextTyp
                 
                 selected_desc = frequency_descriptions.get(selected_frequency, "каждый час в начале часа")
                 
-                message = f"✅ **Настройка обновлена!**\n\n"
-                message += f"Частота напоминаний изменена на: **{selected_desc}**\n\n"
+                message = f"✅ Настройка обновлена!\n\n"
+                message += f"Частота напоминаний изменена на: {selected_desc}\n\n"
                 message += "Новая частота будет действовать с момента следующей проверки планировщика."
                 
                 await query.edit_message_text(message, parse_mode='Markdown')

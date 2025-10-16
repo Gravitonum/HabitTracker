@@ -180,16 +180,16 @@ async def create_habit_command(update: Update, context: ContextTypes.DEFAULT_TYP
     if not context.args:
         await _send_reply(
             update,
-            "🏗️ **Создание привычки**\n\n"
+            "🏗️ Создание привычки\n\n"
             "Рекомендуется использовать интерактивный режим!\n"
             "Просто отправьте команду /create_habit без параметров.\n\n"
-            "**Старый формат (для совместимости):**\n"
+            "Старый формат (для совместимости):\n"
             "`/create_habit Название - Описание - Тип_расписания`\n\n"
-            "**Примеры:**\n"
+            "Примеры:\n"
             "• `/create_habit Пить воду - Ежедневно пить 2 литра воды - daily`\n"
             "• `/create_habit Тренировка - 3 раза в неделю - weekly`\n"
             "• `/create_habit Чтение - По выходным - custom - пн,ср,пт, 18:00, 1`\n\n"
-            "**Доступные типы:** daily, weekly, custom"
+            "Доступные типы: daily, weekly, custom"
         )
         return
 
@@ -363,7 +363,7 @@ async def complete_habit(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 button_text = f"{i}. {habit.name}"
                 if is_completed_today:
                     button_text += " ✅"
-                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"complete_{habit.id}")])
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"complete_{str(habit.id)}")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -597,7 +597,7 @@ async def delete_habit(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Добавляем кнопку для каждой привычки
                 button_text = f"{i}. {habit.name}"
-                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"delete_{habit.id}")])
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=f"delete_{str(habit.id)}")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -639,7 +639,7 @@ async def handle_delete_callback(update: Update, context: ContextTypes.DEFAULT_T
                 # Создаем клавиатуру подтверждения
                 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
                 confirm_keyboard = [
-                    [InlineKeyboardButton("✅ Да, удалить", callback_data=f"confirm_delete_{habit.id}")],
+                    [InlineKeyboardButton("✅ Да, удалить", callback_data=f"confirm_delete_{str(habit.id)}")],
                     [InlineKeyboardButton("❌ Нет, отменить", callback_data="cancel_delete")]
                 ]
                 reply_markup = InlineKeyboardMarkup(confirm_keyboard)
@@ -765,7 +765,7 @@ async def test_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE)
             habit_names = [habit.name for habit in uncompleted_habits]
             
             message = (
-                f"🧪 **Тестовое напоминание**\n\n"
+                f"🧪 Тестовое напоминание\n\n"
                 f"Привет, {user_obj.first_name or user_obj.username or 'пользователь'}!\n"
                 f"Не забудьте выполнить свои привычки:\n\n"
             )
