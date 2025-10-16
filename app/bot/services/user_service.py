@@ -142,3 +142,28 @@ async def get_user_position_by_points(db: AsyncSession, telegram_id: int) -> Opt
     users_with_more_points = count_result.scalars().all()
     
     return len(users_with_more_points) + 1
+
+
+async def update_user_reminder_frequency(db: AsyncSession, telegram_id: int, frequency: str) -> bool:
+    """
+    Обновляет частоту напоминаний пользователя.
+    """
+    try:
+        result = await db.execute(select(User).where(User.telegram_id == telegram_id))
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            logger.warning(f"Пользователь с telegram_id {telegram_id} не найден")
+            return False
+        
+        user.reminder_frequency = frequency
+        await db.commit()
+        await db.refresh(user)
+        
+        logger.info(f"Обновлена частота напоминаний для пользователя {telegram_id}: {frequency}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении частоты напоминаний для пользователя {telegram_id}: {e}")
+        await db.rollback()
+        return False

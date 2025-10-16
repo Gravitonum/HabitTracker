@@ -97,6 +97,8 @@ class User(UserBase):
     points: int = 0
     current_streak: int = 0
     longest_streak: int = 0
+    timezone: Optional[str] = "Europe/Moscow"
+    reminder_frequency: Optional[str] = "0"
     # habits: List['Habit'] = []
     # rewards: List['Reward'] = []
     # friend_requests_sent: List['Friend'] = []

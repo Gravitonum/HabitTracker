@@ -2,11 +2,11 @@
 Обработчики команд, связанных с геймификацией.
 """
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from app.bot.services.reward_service import get_user_rewards, get_user_level_info
 from app.bot.services.habit_service import get_user_statistics
-from app.bot.services.user_service import get_or_create_user, get_top_users_by_points, get_user_position_by_points
+from app.bot.services.user_service import get_or_create_user, get_top_users_by_points, get_user_position_by_points, update_user_reminder_frequency
 from app.core.database import get_db_session
 import logging
 
@@ -66,15 +66,31 @@ async def show_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Получаем статистику пользователя
             stats = await get_user_statistics(db, telegram_id)
             
+            # Получаем описание частоты напоминаний
+            frequency_descriptions = {
+                "*/10": "каждые 10 минут",
+                "*/15": "каждые 15 минут", 
+                "*/30": "каждые 30 минут",
+                "*/45": "каждые 45 минут",
+                "0": "каждый час в начале часа",
+                "daily_start": "каждый день в начале дня",
+                "daily_end": "каждый день в конце дня в 18:00"
+            }
+            
+            reminder_freq = db_user.reminder_frequency or "0"
+            frequency_desc = frequency_descriptions.get(reminder_freq, "каждый час в начале часа")
+            
             message = f"Профиль пользователя: {user.first_name or user.username or 'пользователь'}\n"
             message += f"Telegram ID: {telegram_id}\n"
             message += f"Уровень: {db_user.level}\n"
             message += f"Очки: {db_user.points}\n"
             message += f"Текущая серия: {db_user.current_streak} дней\n"
             message += f"Самая длинная серия: {db_user.longest_streak} дней\n"
+            message += f"Частота напоминаний: {frequency_desc}\n"
             message += f"Дата регистрации: {db_user.created_at.strftime('%d.%m.%Y') if db_user.created_at else 'Неизвестно'}\n"
             message += "Награды: пока нет\n"
-            message += "Чтобы посмотреть статистику привычек, используйте /stats"
+            message += "Чтобы посмотреть статистику привычек, используйте /stats\n"
+            message += "Чтобы настроить частоту напоминаний, используйте /reminder_settings"
 
             await update.message.reply_text(message)
             break
@@ -200,3 +216,140 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Ошибка при получении таблицы лидеров: {e}")
         await update.message.reply_text("Произошла ошибка при получении таблицы лидеров.")
+
+
+async def show_reminder_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Показывает настройки частоты напоминаний с кнопками для выбора.
+    """
+    user = update.effective_user
+    if not user:
+        if update.effective_chat:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Не удалось получить информацию о пользователе.",
+            )
+        return
+
+    if update.message is None:
+        logger.warning(f"Получено обновление без сообщения для update_id {update.update_id}")
+        if update.effective_chat:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Не удалось отправить сообщение: обновление не содержит сообщения.",
+            )
+        return
+
+    telegram_id = user.id
+
+    try:
+        async for db in get_db_session():
+            # Убеждаемся, что пользователь зарегистрирован
+            db_user = await get_or_create_user(
+                db=db,
+                telegram_id=telegram_id,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name,
+            )
+            
+            # Создаем клавиатуру с вариантами частоты напоминаний
+            keyboard = [
+                [
+                    InlineKeyboardButton("Каждые 10 минут", callback_data="reminder_freq_*/10"),
+                    InlineKeyboardButton("Каждые 15 минут", callback_data="reminder_freq_*/15")
+                ],
+                [
+                    InlineKeyboardButton("Каждые 30 минут", callback_data="reminder_freq_*/30"),
+                    InlineKeyboardButton("Каждые 45 минут", callback_data="reminder_freq_*/45")
+                ],
+                [
+                    InlineKeyboardButton("Каждый час", callback_data="reminder_freq_0"),
+                    InlineKeyboardButton("Начало дня", callback_data="reminder_freq_daily_start")
+                ],
+                [
+                    InlineKeyboardButton("Конец дня (18:00)", callback_data="reminder_freq_daily_end")
+                ]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Получаем текущую настройку
+            current_freq = db_user.reminder_frequency or "0"
+            frequency_descriptions = {
+                "*/10": "каждые 10 минут",
+                "*/15": "каждые 15 минут", 
+                "*/30": "каждые 30 минут",
+                "*/45": "каждые 45 минут",
+                "0": "каждый час в начале часа",
+                "daily_start": "каждый день в начале дня",
+                "daily_end": "каждый день в конце дня в 18:00"
+            }
+            
+            current_desc = frequency_descriptions.get(current_freq, "каждый час в начале часа")
+            
+            message = f"🔔 **Настройка частоты напоминаний**\n\n"
+            message += f"Текущая частота: **{current_desc}**\n\n"
+            message += "Выберите желаемую частоту напоминаний:"
+            
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='Markdown')
+            break
+            
+    except Exception as e:
+        logger.error(f"Ошибка при получении настроек напоминаний для пользователя {telegram_id}: {e}")
+        await update.message.reply_text("Произошла ошибка при получении настроек напоминаний.")
+
+
+async def handle_reminder_frequency_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обрабатывает выбор частоты напоминаний через callback.
+    """
+    query = update.callback_query
+    if not query:
+        return
+    
+    await query.answer()
+    
+    user = update.effective_user
+    if not user:
+        await query.edit_message_text("Не удалось получить информацию о пользователе.")
+        return
+    
+    # Извлекаем выбранную частоту из callback_data
+    if not query.data.startswith("reminder_freq_"):
+        return
+    
+    selected_frequency = query.data.replace("reminder_freq_", "")
+    
+    telegram_id = user.id
+    
+    try:
+        async for db in get_db_session():
+            # Обновляем частоту напоминаний пользователя
+            success = await update_user_reminder_frequency(db, telegram_id, selected_frequency)
+            
+            if success:
+                frequency_descriptions = {
+                    "*/10": "каждые 10 минут",
+                    "*/15": "каждые 15 минут", 
+                    "*/30": "каждые 30 минут",
+                    "*/45": "каждые 45 минут",
+                    "0": "каждый час в начале часа",
+                    "daily_start": "каждый день в начале дня",
+                    "daily_end": "каждый день в конце дня в 18:00"
+                }
+                
+                selected_desc = frequency_descriptions.get(selected_frequency, "каждый час в начале часа")
+                
+                message = f"✅ **Настройка обновлена!**\n\n"
+                message += f"Частота напоминаний изменена на: **{selected_desc}**\n\n"
+                message += "Новая частота будет действовать с момента следующей проверки планировщика."
+                
+                await query.edit_message_text(message, parse_mode='Markdown')
+            else:
+                await query.edit_message_text("❌ Ошибка при обновлении настроек. Попробуйте позже.")
+            break
+            
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении частоты напоминаний для пользователя {telegram_id}: {e}")
+        await query.edit_message_text("❌ Произошла ошибка при обновлении настроек.")

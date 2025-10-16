@@ -106,6 +106,7 @@ class User(Base):
     current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     timezone: Mapped[str | None] = mapped_column(String(50), default="Europe/Moscow")  # Часовой пояс пользователя
+    reminder_frequency: Mapped[str | None] = mapped_column(String(20), default="0")  # Частота напоминаний
 
     # Связи
     # habits = relationship("Habit", back_populates="user", cascade="all, delete-orphan")

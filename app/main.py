@@ -31,7 +31,7 @@ from app.bot.handlers.conversation import (
     HABIT_DESCRIPTION,
     CUSTOM_SETTINGS,
 )
-from app.bot.handlers.gamification import show_profile, show_rewards, show_leaderboard
+from app.bot.handlers.gamification import show_profile, show_rewards, show_leaderboard, show_reminder_settings, handle_reminder_frequency_callback
 from app.bot.services.user_service import get_or_create_user
 from app.core.database import get_db_session
 
@@ -55,6 +55,7 @@ async def setup_bot_commands(application: Application):
         BotCommand("stats", "Посмотреть подробную статистику по привычкам"),
         BotCommand("rewards", "Увидеть список ваших наград (бейджей)"),
         BotCommand("leaderboard", "Посмотреть таблицу лидеров по очкам"),
+        BotCommand("reminder_settings", "Настроить частоту напоминаний"),
         BotCommand("cancel", "Отменить текущее действие"),
         BotCommand("help", "Показать это сообщение"),
     ]
@@ -121,7 +122,8 @@ async def help_command(update, context) -> None:
         "7. /stats - Посмотреть подробную статистику по привычкам\n"
         "8. /rewards - Увидеть список ваших наград (бейджей)\n"
         "9. /leaderboard - Посмотреть таблицу лидеров по очкам\n"
-        "10. /help - Показать это сообщение\n\n"
+        "10. /reminder_settings - Настроить частоту напоминаний\n"
+        "11. /help - Показать это сообщение\n\n"
         "📅 **Создание привычек:**\n"
         "Используйте команду /create_habit для интерактивного создания привычки.\n\n"
         "**Процесс создания:**\n"
@@ -207,12 +209,14 @@ def main() -> None:
     application.add_handler(CommandHandler("stats", show_stats))
     application.add_handler(CommandHandler("rewards", show_rewards))
     application.add_handler(CommandHandler("leaderboard", show_leaderboard))
+    application.add_handler(CommandHandler("reminder_settings", show_reminder_settings))
     application.add_handler(CommandHandler("test_notifications", test_notifications))
     
     # Добавляем обработчики callback'ов
     application.add_handler(CallbackQueryHandler(handle_complete_callback, pattern="^complete_"))
     application.add_handler(CallbackQueryHandler(handle_delete_callback, pattern="^delete_"))
     application.add_handler(CallbackQueryHandler(handle_delete_confirm_callback, pattern="^(confirm_delete_|cancel_delete)"))
+    application.add_handler(CallbackQueryHandler(handle_reminder_frequency_callback, pattern="^reminder_freq_"))
 
     # Добавление обработчика ошибок
     async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
