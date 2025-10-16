@@ -58,7 +58,8 @@ def create_database(db_path="habits_tracker.db"):
             "points" INTEGER NOT NULL DEFAULT 0,
             "current_streak" INTEGER NOT NULL DEFAULT 0,
             "longest_streak" INTEGER NOT NULL DEFAULT 0,
-            "timezone" TEXT DEFAULT "Europe/Moscow"
+            "timezone" TEXT DEFAULT "Europe/Moscow",
+            "reminder_frequency" TEXT DEFAULT "0"
         );
     """
     )
@@ -137,6 +138,24 @@ def create_database(db_path="habits_tracker.db"):
     """
     )
 
+    # Таблица отчетов об ошибках
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS "BugReport" (
+            "id" TEXT PRIMARY KEY,
+            "user_id" TEXT NOT NULL,
+            "title" TEXT NOT NULL,
+            "description" TEXT NOT NULL,
+            "incident_type" TEXT NOT NULL,
+            "status" TEXT NOT NULL DEFAULT "New",
+            "admin_comment" TEXT,
+            "created_at" TEXT,
+            "updated_at" TEXT,
+            FOREIGN KEY ("user_id") REFERENCES "User" ("id")
+        );
+    """
+    )
+
     # --- Заполнение справочников ---
 
     # Вставляем типы расписаний
@@ -201,6 +220,8 @@ def create_database(db_path="habits_tracker.db"):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_completion_user_id ON HabitCompletion(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_completion_date ON HabitCompletion(completion_date);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_reward_user_id ON Reward(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_bugreport_user_id ON BugReport(user_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_bugreport_status ON BugReport(status);")
 
     # Подтверждаем изменения и закрываем соединение
     conn.commit()
@@ -216,6 +237,7 @@ def create_database(db_path="habits_tracker.db"):
     print("   - HabitCompletion (отметки выполнения)")
     print("   - Reward (награды)")
     print("   - Friend (дружба)")
+    print("   - BugReport (отчеты об ошибках)")
     print("[INFO] Индексы созданы для оптимизации запросов")
 
 

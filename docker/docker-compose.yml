@@ -1,0 +1,46 @@
+services:
+  habit-tracker-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: habit-tracker-bot
+    restart: unless-stopped
+    environment:
+      # Telegram Bot Configuration
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID:-}
+      
+      # Database Configuration
+      - DATABASE_URL=sqlite+aiosqlite:///./data/habits_tracker.db
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # Gamification Settings
+      - POINTS_PER_HABIT_COMPLETION=${POINTS_PER_HABIT_COMPLETION:-10}
+      - STREAK_BONUS_MULTIPLIER=${STREAK_BONUS_MULTIPLIER:-0.1}
+      - MAX_STREAK_DAYS=${MAX_STREAK_DAYS:-365}
+      
+      # Python path
+      - PYTHONPATH=/app
+    volumes:
+      # Монтируем директорию для базы данных
+      - ../data:/app/data
+      # Монтируем логи (если нужно)
+      - ../logs:/app/logs
+    env_file:
+      - /.env
+    # Зависимости (если понадобятся в будущем)
+    # depends_on:
+    #   - database
+    networks:
+      - habit-tracker-network
+
+# Создаем сеть для контейнеров
+networks:
+  habit-tracker-network:
+    driver: bridge
+
+# Если понадобится база данных PostgreSQL в будущем
+# volumes:
+#   postgres_data:
