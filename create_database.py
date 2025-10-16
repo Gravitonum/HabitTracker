@@ -57,7 +57,8 @@ def create_database(db_path="habits_tracker.db"):
             "level" INTEGER NOT NULL DEFAULT 1,
             "points" INTEGER NOT NULL DEFAULT 0,
             "current_streak" INTEGER NOT NULL DEFAULT 0,
-            "longest_streak" INTEGER NOT NULL DEFAULT 0
+            "longest_streak" INTEGER NOT NULL DEFAULT 0,
+            "timezone" TEXT DEFAULT "Europe/Moscow"
         );
     """
     )
@@ -79,6 +80,7 @@ def create_database(db_path="habits_tracker.db"):
             "custom_schedule_days" TEXT,
             "custom_schedule_time" TEXT,
             "custom_schedule_frequency" INTEGER NOT NULL DEFAULT 1,
+            "timezone" TEXT DEFAULT "Europe/Moscow",
             FOREIGN KEY ("user_id") REFERENCES "User" ("id"),
             FOREIGN KEY ("schedule_type_id") REFERENCES "ScheduleType" ("id")
         );

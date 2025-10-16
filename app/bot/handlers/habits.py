@@ -258,7 +258,8 @@ async def create_habit_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 schedule_type=schedule_type,
                 custom_schedule_days=custom_schedule_days,
                 custom_schedule_time=custom_schedule_time,
-                custom_schedule_frequency=custom_schedule_frequency
+                custom_schedule_frequency=custom_schedule_frequency,
+                timezone="Europe/Moscow"  # По умолчанию московское время
             )
 
             # Переводим тип расписания на русский
@@ -707,6 +708,7 @@ async def handle_delete_confirm_callback(update: Update, context: ContextTypes.D
 async def test_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Команда для тестирования системы уведомлений (только для разработки).
+    Показывает только привычки текущего пользователя.
     """
     user = update.effective_user
     if not user:
@@ -714,86 +716,66 @@ async def test_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     try:
-        from app.core.scheduler import HabitReminderScheduler
         from app.core.database import get_db_session
         from app.bot.services.habit_service import get_users_with_uncompleted_daily_habits
         
         async for db in get_db_session():
-            # Получаем всех пользователей с ежедневными привычками
+            # Получаем только привычки текущего пользователя
             from sqlalchemy import select
             from app.models.database import User, Habit, ScheduleType
             
-            # Сначала проверим, есть ли вообще ежедневные привычки
-            daily_habits_result = await db.execute(
-                select(Habit)
-                .join(ScheduleType, Habit.schedule_type_id == ScheduleType.id)
-                .where(ScheduleType.name == "daily")
-                .where(Habit.is_active == True)
+            # Находим пользователя в базе данных
+            user_result = await db.execute(
+                select(User).where(User.telegram_id == user.id)
             )
-            daily_habits = daily_habits_result.scalars().all()
+            user_obj = user_result.scalar_one_or_none()
             
-            if not daily_habits:
-                await _send_reply(update, "В системе нет активных ежедневных привычек.")
+            if not user_obj:
+                await _send_reply(update, "Пользователь не найден в базе данных.")
                 break
             
-            # Отладочная информация о найденных привычках
-            debug_habits = "Найденные ежедневные привычки:\n"
-            for i, habit in enumerate(daily_habits, 1):
-                debug_habits += f"{i}. {habit.name} (ID: {habit.id}, User: {habit.user_id})\n"
-            debug_habits += "\n"
-            
-            # Получаем всех пользователей с ежедневными привычками (не только с незавершенными)
-            all_users_with_daily_habits = await db.execute(
-                select(User, Habit)
-                .join(Habit, User.id == Habit.user_id)
+            # Получаем активные привычки текущего пользователя
+            habits_result = await db.execute(
+                select(Habit, ScheduleType)
                 .join(ScheduleType, Habit.schedule_type_id == ScheduleType.id)
-                .where(ScheduleType.name == "daily")
+                .where(Habit.user_id == user_obj.id)
                 .where(Habit.is_active == True)
             )
-            
-            user_habits = all_users_with_daily_habits.all()
+            user_habits = habits_result.all()
             
             if not user_habits:
-                await _send_reply(update, "В системе нет пользователей с ежедневными привычками.")
+                await _send_reply(update, "У вас нет активных привычек.")
                 break
             
-            # Получаем пользователей с незавершенными привычками
+            # Получаем незавершенные привычки для текущего пользователя
             users_to_notify = await get_users_with_uncompleted_daily_habits(db)
+            current_user_data = None
             
-            # Отладочная информация
-            debug_info = f"Отладка:\n"
-            debug_info += f"- Найдено ежедневных привычек: {len(daily_habits)}\n"
-            debug_info += f"- Найдено пользователей с ежедневными привычками: {len(user_habits)}\n"
-            debug_info += f"- Найдено пользователей с незавершенными привычками: {len(users_to_notify)}\n\n"
-            
-            if not users_to_notify:
-                await _send_reply(update, f"{debug_habits}{debug_info}Все ежедневные привычки ({len(daily_habits)}) уже выполнены сегодня.")
-                break
-            
-            # Отправляем тестовое уведомление
             for user_data in users_to_notify:
-                user_obj = user_data['user']
-                uncompleted_habits = user_data['uncompleted_habits']
-                
-                if not uncompleted_habits:
-                    continue
-                
-                # Формируем сообщение
-                habit_names = [habit.name for habit in uncompleted_habits]
-                message = (
-                    f"🧪 **Тестовое напоминание**\n\n"
-                    f"Привет, {user_obj.first_name or user_obj.username or 'пользователь'}!\n"
-                    f"Не забудьте выполнить свои ежедневные привычки:\n\n"
-                )
-                
-                for i, habit_name in enumerate(habit_names, 1):
-                    message += f"{i}. {habit_name}\n"
-                
-                message += f"\nИспользуйте /complete <номер> для отметки выполнения."
-                
-                await _send_reply(update, message)
+                if user_data['user'].telegram_id == user.id:
+                    current_user_data = user_data
+                    break
+            
+            if not current_user_data or not current_user_data['uncompleted_habits']:
+                await _send_reply(update, "Все ваши привычки уже выполнены сегодня!")
                 break
             
+            # Формируем сообщение только для текущего пользователя
+            uncompleted_habits = current_user_data['uncompleted_habits']
+            habit_names = [habit.name for habit in uncompleted_habits]
+            
+            message = (
+                f"🧪 **Тестовое напоминание**\n\n"
+                f"Привет, {user_obj.first_name or user_obj.username or 'пользователь'}!\n"
+                f"Не забудьте выполнить свои привычки:\n\n"
+            )
+            
+            for i, habit_name in enumerate(habit_names, 1):
+                message += f"{i}. {habit_name}\n"
+            
+            message += f"\nИспользуйте /complete <номер> для отметки выполнения."
+            
+            await _send_reply(update, message)
             break
             
     except Exception as e:

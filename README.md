@@ -68,6 +68,8 @@ pip install -r requirements.txt
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token_here
+DATABASE_URL=sqlite+aiosqlite:///./habits_tracker.db
+LOG_LEVEL=INFO
 ```
 
 ### 5. Инициализация базы данных

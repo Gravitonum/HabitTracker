@@ -105,6 +105,7 @@ class User(Base):
     points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     longest_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    timezone: Mapped[str | None] = mapped_column(String(50), default="Europe/Moscow")  # Часовой пояс пользователя
 
     # Связи
     # habits = relationship("Habit", back_populates="user", cascade="all, delete-orphan")
@@ -143,6 +144,7 @@ class Habit(Base):
     custom_schedule_days: Mapped[str | None] = mapped_column(String(50))  # JSON строка с днями недели
     custom_schedule_time: Mapped[str | None] = mapped_column(String(10))  # Время в формате HH:MM
     custom_schedule_frequency: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # Частота (каждый N день)
+    timezone: Mapped[str | None] = mapped_column(String(50), default="Europe/Moscow")  # Часовой пояс пользователя
 
     # Связи
     # user = relationship("User", back_populates="habits")

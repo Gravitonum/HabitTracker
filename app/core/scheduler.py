@@ -31,11 +31,11 @@ class HabitReminderScheduler:
             self.is_running = True
             logger.info("Планировщик задач запущен.")
 
-            # Пример: Ежедневное напоминание в 18:00
+            # Проверка напоминаний каждые 5 минут
             self.scheduler.add_job(
                 self.send_daily_reminders,
-                CronTrigger(hour=18, minute=0),  # Напоминание каждый день в 18:00
-                id="daily_habit_reminder",
+                CronTrigger(minute="*/5"),  # Каждые 5 минут
+                id="habit_reminder_check",
             )
 
             # Пример: Еженедельная проверка челленджей в понедельник в 9:00
@@ -64,8 +64,9 @@ class HabitReminderScheduler:
             from app.core.database import get_db_session
             from app.bot.services.habit_service import get_users_with_uncompleted_daily_habits
             from datetime import date
+            from app.utils.timezone_utils import is_habit_time_now, get_user_timezone
             
-            # Получаем пользователей с незавершенными ежедневными привычками
+            # Получаем пользователей с незавершенными привычками
             async for db in get_db_session():
                 users_to_notify = await get_users_with_uncompleted_daily_habits(db)
                 
@@ -73,7 +74,7 @@ class HabitReminderScheduler:
                     logger.info("Нет пользователей для отправки напоминаний.")
                     break
                 
-                logger.info(f"Отправка напоминаний {len(users_to_notify)} пользователям.")
+                logger.info(f"Найдено {len(users_to_notify)} пользователей с незавершенными привычками.")
                 
                 for user_data in users_to_notify:
                     user = user_data['user']
@@ -82,12 +83,26 @@ class HabitReminderScheduler:
                     if not uncompleted_habits:
                         continue
                     
+                    # Фильтруем привычки по времени напоминания
+                    habits_to_remind = []
+                    for habit in uncompleted_habits:
+                        if habit.custom_schedule_time:
+                            # Проверяем, наступило ли время для напоминания
+                            if is_habit_time_now(habit.custom_schedule_time, habit.timezone):
+                                habits_to_remind.append(habit)
+                        else:
+                            # Для привычек без времени добавляем в список
+                            habits_to_remind.append(habit)
+                    
+                    if not habits_to_remind:
+                        continue
+                    
                     # Формируем сообщение с незавершенными привычками
-                    habit_names = [habit.name for habit in uncompleted_habits]
+                    habit_names = [habit.name for habit in habits_to_remind]
                     message = (
                         f"🔔 **Напоминание о привычках**\n\n"
                         f"Привет, {user.first_name or user.username or 'пользователь'}!\n"
-                        f"Не забудьте выполнить свои ежедневные привычки:\n\n"
+                        f"Не забудьте выполнить свои привычки:\n\n"
                     )
                     
                     for i, habit_name in enumerate(habit_names, 1):
