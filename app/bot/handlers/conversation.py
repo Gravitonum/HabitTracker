@@ -95,18 +95,27 @@ async def handle_custom_settings(update: Update, context: ContextTypes.DEFAULT_T
     custom_settings = update.message.text.strip()
     
     # Парсим custom настройки
+    # Ищем последние две запятые для разделения на дни, время и частоту
     parts = custom_settings.split(",")
-    if len(parts) < 2:
+    if len(parts) < 3:
         await update.message.reply_text(
             "❌ Неверный формат. Используйте: `дни_недели,время,частота`\n"
             "Пример: `пн,ср,пт, 18:00, 1`"
         )
         return CUSTOM_SETTINGS
     
+    # Берем все части кроме последних двух как дни недели
+    days_parts = parts[:-2]
+    time_part = parts[-2].strip()
+    frequency_part = parts[-1].strip()
+    
+    # Объединяем дни недели обратно
+    days_str = ",".join(days_parts).strip()
+    
     # Сохраняем настройки
-    context.user_data['custom_schedule_days'] = parts[0].strip()
-    context.user_data['custom_schedule_time'] = parts[1].strip()
-    context.user_data['custom_schedule_frequency'] = int(parts[2].strip()) if len(parts) > 2 else 1
+    context.user_data['custom_schedule_days'] = days_str
+    context.user_data['custom_schedule_time'] = time_part
+    context.user_data['custom_schedule_frequency'] = int(frequency_part) if frequency_part.isdigit() else 1
     
     await update.message.reply_text(
         f"✅ Настройки custom расписания сохранены:\n"
